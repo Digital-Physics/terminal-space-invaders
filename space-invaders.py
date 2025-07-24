@@ -8,6 +8,9 @@ class SpaceInvaders:
         self.debug = debug
         self.counter = 0
         self.update_freq = 5 # 5 is slow; enemy position is updated every 5 clock ticks to start
+
+        self.screen_frame_offset = 2   # Cabinet frame (around the screen)
+        self.cabinet_depth = 3
         
         # game area dimensions
         self.game_width = 20 
@@ -25,6 +28,9 @@ class SpaceInvaders:
         self.enemies = []
         self.enemy_direction = "right"
         self.init_enemies()
+
+        # bullets
+        self.bullets = []
         
         # game loop setting
         self.running = True
@@ -56,80 +62,180 @@ class SpaceInvaders:
         if self.debug:
             self.stdscr.addstr(line, 0, str(message)[:self.width])
         
+    def add_char_safe(self, y, x, char):
+        """Helper to safely add a character, checking bounds"""
+        if 0 <= y < self.height and 0 <= x < self.width:
+            self.stdscr.addch(y, x, char)
+
+    def add_string_safe(self, y, x, text):
+        """Helper to safely add a string, checking bounds"""
+        if 0 <= y < self.height and 0 <= x < self.width:
+            if x + len(text) > self.width:
+                text = text[:self.width - x]
+            self.stdscr.addstr(y, x, text)
+
+
     def draw_border(self):
-        # Top and bottom borders
+        # Original game area borders (screen)
         for x in range(self.game_width + 1):
-            self.stdscr.addch(self.start_y, self.start_x + x, '-')
-            self.stdscr.addch(self.start_y + self.game_height, self.start_x + x, '_')
+            self.add_char_safe(self.start_y, self.start_x + x, '-')
+            self.add_char_safe(self.start_y + self.game_height, self.start_x + x, '_')
         
-        # Left and right borders
         for y in range(self.game_height + 1):
-            self.stdscr.addch(self.start_y + y, self.start_x, '|')
-            self.stdscr.addch(self.start_y + y, self.start_x + self.game_width, '|')
-    
-        # joystick
-        self.stdscr.addstr(self.start_y + self.game_height + 2, self.start_x + self.game_width // 2, '🕹️')
+            self.add_char_safe(self.start_y + y, self.start_x, '|')
+            self.add_char_safe(self.start_y + y, self.start_x + self.game_width, '|')
+
+        # Calculate key X coordinates
+        cabinet_front_left_x = self.start_x - self.screen_frame_offset
+        cabinet_front_right_x = self.start_x + self.game_width + self.screen_frame_offset
+        right_depth_x = cabinet_front_right_x + self.cabinet_depth
+        
+        # top cabinet border to back edge
+        for x in range(cabinet_front_left_x - 1, cabinet_front_right_x + 1):
+            self.add_char_safe(self.start_y - self.screen_frame_offset - 1, x, '^')
+        self.add_char_safe(self.start_y - self.screen_frame_offset - 1, cabinet_front_right_x + 2, '\\')
+        self.add_string_safe(self.start_y - self.screen_frame_offset, cabinet_front_left_x + 5, 'Space Invaders 👾')
+        self.add_string_safe(self.start_y - self.screen_frame_offset + 1, cabinet_front_left_x + 1, '=======================')
+
+        # Left cabinet border (sides of the screen part)
+        for y in range(self.start_y - self.screen_frame_offset - 1, self.start_y + self.game_height + self.screen_frame_offset + 1):
+            self.add_char_safe(y, cabinet_front_left_x - 1, '*')
+        
+        # Right "depth" line of the cabinet (continuous vertical line)
+        cabinet_total_height = (self.start_y - self.screen_frame_offset) + (self.game_height + 1) + (self.screen_frame_offset + 1) + 4 + 8 + 1 # Calculate total height based on elements
+        for y in range(self.start_y - self.screen_frame_offset + 1, cabinet_total_height - 1): # Start 1 char down to allow for top slant
+             self.add_char_safe(y, right_depth_x, '|') 
+
+        # Slants connecting game screen to cabinet frame
+        # Top-left slant
+        self.add_char_safe(self.start_y, self.start_x, '\\')
+
+        # Top-right slant (from game screen top right to cabinet top right front)
+        self.add_char_safe(self.start_y, self.start_x + self.game_width, '/')
+
+        # Bottom-left slant (from game screen bottom left to cabinet bottom left)
+        self.add_char_safe(self.start_y + self.game_height + 1, self.start_x - 1, '/')
+        self.add_char_safe(self.start_y + self.game_height + 2, self.start_x - 2, '/')
+
+        # Bottom-right slant (from game screen bottom right to cabinet's right depth line)
+        for i in range(self.cabinet_depth - 1): # Connect across the depth
+            self.add_string_safe(self.start_y + self.game_height + self.screen_frame_offset - 1 + i, 
+                               cabinet_front_right_x + i - 1, '\\')
+
+        # Top perspective line of the cabinet from top-right front to top-right depth
+        self.add_char_safe(self.start_y - self.screen_frame_offset, right_depth_x, '\\') # Top right corner of the cabinet
+
+        # Vertical right of the screen
+        for y in range(self.start_y - self.screen_frame_offset - 1, self.start_y + self.game_height + self.screen_frame_offset + 1):
+            self.add_char_safe(y, cabinet_front_right_x + 1, '*')
+
+        # Control Panel Front Top Edge
+        control_panel_top_y = self.start_y + self.game_height + self.screen_frame_offset + 1
+        for x in range(cabinet_front_left_x, cabinet_front_right_x + 1):
+            self.add_char_safe(control_panel_top_y, x, '=')
+
+        # Joystick
+        self.add_string_safe(control_panel_top_y - 1, self.start_x + self.game_width // 2, '🕹️')
+
+        # Control Panel Front Sides
+        for y_offset in range(4): # Height of front control panel area
+            self.add_char_safe(control_panel_top_y + y_offset, cabinet_front_left_x - 1, '[') # Left edge of front panel
+            self.add_char_safe(control_panel_top_y + y_offset, cabinet_front_right_x + 1, ']') # Right edge of front panel
+
+        # Bottom of control panel (front)
+        control_panel_bottom_y = control_panel_top_y + 3
+        for x in range(cabinet_front_left_x, cabinet_front_right_x + 1):
+            self.add_char_safe(control_panel_bottom_y, x, '_')
+
+        # Cabinet Body - Main front section
+        body_top_y = control_panel_bottom_y + 1
+        body_height = 8 # Height of the main body section
+
+        for y in range(body_height):
+            self.add_char_safe(body_top_y + y, cabinet_front_left_x, '|') # Left edge of front body
+            self.add_char_safe(body_top_y + y, cabinet_front_right_x, '|') # Right edge of front body
+
+        # Cabinet Base
+        base_y = body_top_y + body_height
+        
+        # Front part of the base
+        for x in range(cabinet_front_left_x, cabinet_front_right_x + 1):
+            self.add_char_safe(base_y, x, '=') # Flat bottom front
+
+        # Right side of the base (depth) - ensures it closes off neatly # Base slant to meet depth line
+        self.add_char_safe(base_y - 1, cabinet_front_right_x + 2, '/') 
+        self.add_char_safe(base_y, cabinet_front_right_x + 1, '/')
+
+        # coin slots
+        self.add_string_safe(control_panel_bottom_y + 3, self.start_x + self.game_width // 2 - 2, '|$|')
+        self.add_string_safe(control_panel_bottom_y + 3, self.start_x + self.game_width // 2 + 2, '|$|')
 
     def draw_player(self):
-        self.stdscr.addch(self.start_y + self.player_y, self.start_x + self.player_x, '^')
-    
+        self.add_char_safe(self.start_y + self.player_y, self.start_x + self.player_x, '^')
+
     def draw_enemies(self):
         for enemy in self.enemies:
             if enemy['alive']:
-                # if somehow the player avoided the enemies but they got to the bottom anyway, end the game
                 self.debug_message(f"{enemy['y']=}, {self.game_height=}", line=2)
-                if enemy['y'] > self.game_height: 
+                if enemy['y'] > self.game_height:
                     self.running = False
-                    break  
-
-                self.stdscr.addch(self.start_y + enemy['y'], self.start_x + enemy['x'], '👾')
+                    break
+                # using 👾 sometimes leads to shifting of border so we use 0 for enemy instead instead
+                self.add_string_safe(self.start_y + enemy['y'], self.start_x + enemy['x'], '0')
+    
+    def draw_bullets(self):
+        for bullet in self.bullets:
+            self.debug_message(f"{bullet['y']=}", line=3)
+            self.add_char_safe(self.start_y + bullet['y'], self.start_x + bullet['x'], '•')
     
     def check_enemies(self):
-        """check if any enemies are alive, and if not, show the end screen"""     
-        # end screen check 
-        # for enemy in self.enemies:
-        #     enemy['alive'] = False 
-
+        """check if any enemies are alive, and if not, show the end screen"""  
         if not any(enemy['alive'] for enemy in self.enemies):
             mid_screen_y = self.start_y + self.game_height // 2
             mid_screen_x = self.start_x + self.game_width // 2
-            self.stdscr.addstr(mid_screen_y, mid_screen_x, '🤖')
+            self.add_char_safe(mid_screen_y, mid_screen_x, '🎉') 
             
     def update_enemies(self):
         """move all enemies"""
-        if self.counter % self.update_freq == 0:  # Move every n frames for slower movement
-            # Check if we need to change direction
+        if self.counter % self.update_freq == 0:
             if any(enemy['alive'] for enemy in self.enemies):
                 leftmost = min(enemy['x'] for enemy in self.enemies if enemy['alive']) 
                 rightmost = max(enemy['x'] for enemy in self.enemies if enemy['alive'])
                 
                 if self.enemy_direction == "right" and rightmost >= self.game_width - 2:
-                    # Hit right wall - change direction, move down, speed up
                     self.enemy_direction = "left"
                     for enemy in self.enemies:
                         if enemy['alive']:
                             enemy['y'] += 1
                     self.update_freq = max(self.update_freq - 1, 1)
                 elif self.enemy_direction == "left" and leftmost <= 1:
-                    # Hit left wall - change direction, move down, speed up
                     self.enemy_direction = "right"
                     for enemy in self.enemies:
                         if enemy['alive']:
                             enemy['y'] += 1
                     self.update_freq = max(self.update_freq - 1, 1)
                 else:
-                    # Normal horizontal movement
                     move_amount = 1 if self.enemy_direction == "right" else -1
                     for enemy in self.enemies:
                         if enemy['alive']:
                             enemy['x'] += move_amount
+    
+    def update_bullets(self):
+        """move all bullets up one and discard ones that have gone past the top edge of the screen"""
+        remove_bullets = []
+
+        for i, bullet in enumerate(self.bullets):
+            bullet['y'] -= 1
+            if bullet['y'] < 1:
+                remove_bullets.append(i)
+        
+        self.bullets = [bullet for i, bullet in enumerate(self.bullets) if i not in remove_bullets]
 
     def handle_input(self):
         key = self.stdscr.getch()
         self.debug_message(f"input key: {key}", line=0)
 
-        # 'esc' (ASCII value is 27) or 'q' to quit
-        if key == 27 or key == ord('q'): 
+        if key == 27 or key == ord('q'):
             self.running = False
         elif key == curses.KEY_LEFT:
             if self.player_x > 1:
@@ -137,12 +243,14 @@ class SpaceInvaders:
         elif key == curses.KEY_RIGHT:
             if self.player_x < self.game_width - 1:
                 self.player_x += 1
+        elif key == ord(' '):
+            self.bullets.append({"y": self.player_y, "x": self.player_x})
     
     def update_state(self):
         """state is only referenced for enemy speed at this point"""
-        self.counter = (self.counter + 1) % (5*4*3) # Mod is Lowest Common Multiple of each possible update frequency (1 to 5)
+        self.counter = (self.counter + 1) % (5*4*3)
 
-    def collision_check(self):
+    def collision_check_enemy(self):
         """check collision with any living enemy"""
         alive_enemies = [e for e in self.enemies if e['alive']]
         enemy_positions = [(e['x'], e['y']) for e in alive_enemies]
@@ -154,32 +262,45 @@ class SpaceInvaders:
             if enemy['x'] == self.player_x and enemy['y'] == self.player_y:
                 self.running = False
                 break
+    
+    def collision_check_bullet(self):
+        """check bullet-enemy collision"""
+        remove_bullets = []
+
+        self.debug_message(f"{self.bullets=}", line=8)
+
+        for enemy in self.enemies:
+            for i, bullet in enumerate(self.bullets):
+                if enemy['alive'] and bullet["x"] == enemy['x'] and bullet["y"] == enemy['y']:
+                    remove_bullets.append(i)
+                    enemy['alive'] = False
+
+        self.bullets = [bullet for i, bullet in enumerate(self.bullets) if i not in remove_bullets]
 
     def run(self):
         """game loop"""
         while self.running:
             self.stdscr.clear() 
             
-            # Update game state
             self.update_state()
             self.handle_input()
             self.update_enemies() 
-            self.collision_check()
+            self.update_bullets()
+            self.collision_check_enemy()
+            self.collision_check_bullet()
 
-            self.check_enemies() # show end screen if no enemies
+            self.check_enemies()
 
             self.draw_border()
             self.draw_player()
             self.draw_enemies() 
+            self.draw_bullets()
 
             self.debug_message(f"{self.game_width=} x {self.game_height=}", line=12)
             self.debug_message(f"{self.counter=}", line=13)
             self.debug_message(f"{self.update_freq=}", line=14)
             
-            # screen refresh
             self.stdscr.refresh()
-            
-            # slow frame rate for consistent animation clock tick and retro feel
             time.sleep(0.2)
 
 def main():
@@ -187,23 +308,22 @@ def main():
     Initialize curses, start the game, and clean-up curses afterwards.
     The clean-up restores the terminal to the normal state in event of crash or Ctrl + C exit.
     """
-        
     try:
-        # init curses returns the standard screen
         stdscr = curses.initscr()
+        game = SpaceInvaders(stdscr, debug=True)
+        
+        # Calculate required dimensions
+        required_width = game.start_x + game.game_width + game.screen_frame_offset + game.cabinet_depth + 10
+        required_height = game.start_y + game.game_height + game.screen_frame_offset + 10
 
-        game = SpaceInvaders(stdscr, debug=False)
-
-        if game.width < game.game_width or game.height < game.game_height:
-            print("😵 make terminal window bigger")
+        if game.width < required_width or game.height < required_height:
+            print(f"👾 Make terminal window bigger. Minimum size: {required_height}x{required_width}. Your window is {game.height}x{game.width}.")
             time.sleep(3)
         else:
             game.run()
-    except KeyboardInterrupt:  # no error message when Ctrl + C to quit (and curses clean-up still happens)
+    except KeyboardInterrupt:
         pass
-    finally: # finally runs after program ends, program crashes, or it is interrupted and exited through Ctrl + c
-        # clean-up curses
-        # exiting without calling curses.endwin() will mess up your terminal and you'll need to quit it
+    finally:
         curses.endwin()
 
 if __name__ == "__main__":

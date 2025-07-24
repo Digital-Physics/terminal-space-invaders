@@ -1,1 +1,1 @@
-Toy version of Space Invaders in the terminal. No guns implemented yet. Debug mode with print statements available.
+Toy version of Space Invaders in the terminal. Debug mode with print statements available.
