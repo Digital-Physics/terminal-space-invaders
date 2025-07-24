@@ -301,6 +301,7 @@ class SpaceInvaders:
             self.debug_message(f"{self.update_freq=}", line=14)
             
             self.stdscr.refresh()
+            curses.flushinp()  # This flushes the input buffer
             time.sleep(0.2)
 
 def main():
