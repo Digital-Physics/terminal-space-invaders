@@ -22,18 +22,22 @@ class SpaceInvaders:
         self.running = True
         self.game_over = False
         self.game_won = False
+        self.current_level = 1
+        self.max_level = 3
+        self.space_pressed_last_frame = False # so user can't hold down spacebar to shoot
         
         # Setup curses 
         stdscr.keypad(True)    # Enable special keys (arrows, function keys, etc.)
         curses.curs_set(0)     # Hide cursor
         stdscr.timeout(100)    # 100ms timeout for input (comment out to step through on input)
         self.stdscr.nodelay(True) # getch() will be non-blocking and return immediately
+        self.pressed_keys = set()
         
         # Initialize game state
         self.reset_game()
 
     def reset_game(self):
-        """Reset all game variables to initial state"""
+        """reset all game variables to initial state"""
         self.counter = 0
         self.update_freq = 5 # 5 is slow; enemy position is updated every 5 clock ticks to start
         
@@ -41,7 +45,7 @@ class SpaceInvaders:
         self.player_x = self.game_width // 2
         self.player_y = self.game_height - 1
         
-        # Initialize enemies; 2 rows of 3 enemies each
+        # Initialize enemies based on current level
         self.enemies = []
         self.enemy_direction = "right"
         self.init_enemies()
@@ -54,14 +58,17 @@ class SpaceInvaders:
         self.game_won = False
 
     def init_enemies(self):
-        """Initialize a 2x3 grid of enemies"""
+        """init enemies based on current level"""
         self.enemies = []
         start_x = 3
         start_y = 2
         spacing_x = 4
         spacing_y = 2
         
-        for row in range(2):
+        # Number of rows depends on level: Level 1 = 2 rows, Level 2 = 3 rows, Level 3 = 4 rows
+        num_rows = self.current_level + 1
+        
+        for row in range(num_rows):
             for col in range(3):
                 enemy = {
                     'x': start_x + col * spacing_x,
@@ -75,12 +82,10 @@ class SpaceInvaders:
             self.stdscr.addstr(line, 0, str(message)[:self.width])
         
     def add_char_safe(self, y, x, char):
-        """Helper to safely add a character, checking bounds"""
         if 0 <= y < self.height and 0 <= x < self.width:
             self.stdscr.addch(y, x, char)
 
     def add_string_safe(self, y, x, text):
-        """Helper to safely add a string, checking bounds"""
         if 0 <= y < self.height and 0 <= x < self.width:
             if x + len(text) > self.width:
                 text = text[:self.width - x]
@@ -186,7 +191,11 @@ class SpaceInvaders:
             self.add_char_safe(self.start_y + self.player_y, self.start_x + self.player_x, '^')
 
     def draw_score(self):
-        self.add_string_safe(self.start_y + 1, self.start_x + 2, str(6 - len([enemy for enemy in self.enemies if enemy['alive']])) + "/6")
+        total_enemies = len(self.enemies)
+        alive_enemies = len([enemy for enemy in self.enemies if enemy['alive']])
+        destroyed_enemies = total_enemies - alive_enemies
+        
+        self.add_string_safe(self.start_y + 1, self.start_x + 2, f"L{self.current_level}: {destroyed_enemies}/{total_enemies}")
 
     def draw_enemies(self):
         for enemy in self.enemies:
@@ -205,24 +214,49 @@ class SpaceInvaders:
                 self.add_char_safe(self.start_y + bullet['y'], self.start_x + bullet['x'], '•')
     
     def check_enemies(self):
-        """check if any enemies are alive, and if not, show the end screen"""  
+        """check if any enemies are alive, and if not, advance to next level or win"""  
         if not any(enemy['alive'] for enemy in self.enemies):
-            self.game_won = True
+            if self.current_level < self.max_level:
+                # Advance to next level
+                self.current_level += 1
+                self.reset_level()
+            else:
+                # All levels completed
+                self.game_won = True
+    
+    def reset_level(self):
+        """reset/init next level"""
+        self.counter = 0
+        self.update_freq = max(5 - self.current_level + 1, 2)  # increase speed with each level
+        
+        # player position
+        self.player_x = self.game_width // 2
+        self.player_y = self.game_height - 1
+        
+        # init enemies
+        self.enemies = []
+        self.enemy_direction = "right"
+        self.init_enemies()
+        
+        # init bullets
+        self.bullets = []
             
     def draw_game_over_screen(self):
-        """Draw game over or victory screen with reset option"""
+        """draw game over or victory screen with reset option"""
         mid_screen_y = self.start_y + self.game_height // 2
         mid_screen_x = self.start_x + self.game_width // 2
         
         if self.game_won:
-            self.add_string_safe(mid_screen_y - 2, mid_screen_x - 4, 'YOU WON!')
+            self.add_string_safe(mid_screen_y - 3, mid_screen_x - 5, 'You Won')
+            self.add_string_safe(mid_screen_y - 2, mid_screen_x - 5, 'Congrats!')
             self.add_char_safe(mid_screen_y - 1, mid_screen_x, '🎉')
         else:
             self.add_string_safe(mid_screen_y - 2, mid_screen_x - 4, 'GAME OVER')
-            self.add_char_safe(mid_screen_y - 1, mid_screen_x, '💀')
+            self.add_string_safe(mid_screen_y - 1, mid_screen_x - 3, f'Level {self.current_level}')
+            self.add_char_safe(mid_screen_y, mid_screen_x, '💀')
         
-        self.add_string_safe(mid_screen_y + 1, mid_screen_x - 7, 'Press R to Reset')
-        self.add_string_safe(mid_screen_y + 2, mid_screen_x - 6, 'Press Q to Quit')
+        self.add_string_safe(mid_screen_y + 2, mid_screen_x - 7, 'Press R to Reset')
+        self.add_string_safe(mid_screen_y + 3, mid_screen_x - 6, 'Press Q to Quit')
 
     def update_enemies(self):
         """move all enemies"""
@@ -269,7 +303,8 @@ class SpaceInvaders:
             self.running = False
         elif self.game_over or self.game_won:
             # Handle game over/won state input
-            if key == ord('r') or key == ord('R'):
+            if key == ord('r'):
+                self.current_level = 1  # Reset to level 1
                 self.reset_game()
         else:
             # Handle normal gameplay input
@@ -280,7 +315,11 @@ class SpaceInvaders:
                 if self.player_x < self.game_width - 1:
                     self.player_x += 1
             elif key == ord(' '):
-                self.bullets.append({"y": self.player_y, "x": self.player_x})
+                if not self.space_pressed_last_frame:
+                    self.bullets.append({"y": self.player_y, "x": self.player_x})
+                self.space_pressed_last_frame = True
+            else:
+                self.space_pressed_last_frame = False
     
     def update_state(self):
         """state is only referenced for enemy speed at this point"""
@@ -345,11 +384,11 @@ class SpaceInvaders:
             self.debug_message(f"{self.game_width=} x {self.game_height=}", line=12)
             self.debug_message(f"{self.counter=}", line=13)
             self.debug_message(f"{self.update_freq=}", line=14)
-            self.debug_message(f"game_over={self.game_over}, game_won={self.game_won}", line=15)
+            self.debug_message(f"game_over={self.game_over}, game_won={self.game_won}, level={self.current_level}", line=15)
             
             self.stdscr.refresh()
             curses.flushinp()  # This flushes the input buffer
-            time.sleep(0.2)
+            time.sleep(0.1)
 
 def main():
     """
