@@ -16,8 +16,7 @@ class SpaceInvaders:
 
         # upper left corner origin
         self.start_x = (self.width - self.game_width) // 2
-        # self.start_y = (self.height - self.game_height) // 2
-        self.start_y = 3
+        self.start_y = (self.height - 38) // 2
         
         # Game states
         self.running = True
@@ -110,19 +109,21 @@ class SpaceInvaders:
         right_depth_x = cabinet_front_right_x + self.cabinet_depth
         
         # top cabinet border to back edge
-        for x in range(cabinet_front_left_x - 1, cabinet_front_right_x + 1):
+        for x in range(cabinet_front_left_x, cabinet_front_right_x + 1):
             self.add_char_safe(self.start_y - self.screen_frame_offset - 1, x, '^')
-        self.add_char_safe(self.start_y - self.screen_frame_offset - 1, cabinet_front_right_x + 2, '\\')
+        self.add_char_safe(self.start_y - self.screen_frame_offset - 1, cabinet_front_right_x + 1, '\\')
+        self.add_char_safe(self.start_y - self.screen_frame_offset, right_depth_x - 1, '\\') # Top right corner of the cabinet
         self.add_string_safe(self.start_y - self.screen_frame_offset, cabinet_front_left_x + 5, 'Space Invaders 👾')
         self.add_string_safe(self.start_y - self.screen_frame_offset + 1, cabinet_front_left_x + 1, '=======================')
 
-        # Left cabinet border (sides of the screen part)
+        # Left and Right cabinet border (sides of the screen part)
         for y in range(self.start_y - self.screen_frame_offset - 1, self.start_y + self.game_height + self.screen_frame_offset + 1):
-            self.add_char_safe(y, cabinet_front_left_x - 1, '*')
-        
+            self.add_char_safe(y, cabinet_front_left_x, '*')
+            self.add_char_safe(y, cabinet_front_right_x, '*')
+
         # Right "depth" line of the cabinet (continuous vertical line)
-        cabinet_total_height = 42
-        for y in range(self.start_y - self.screen_frame_offset + 1, cabinet_total_height - 1): # Start 1 char down to allow for top slant
+        cabinet_total_height = 39
+        for y in range(self.start_y - self.screen_frame_offset + 1, self.start_y + cabinet_total_height - 1): 
              self.add_char_safe(y, right_depth_x, '|') 
 
         # Slants connecting game screen to cabinet frame
@@ -140,13 +141,6 @@ class SpaceInvaders:
         for i in range(self.cabinet_depth - 1): # Connect across the depth
             self.add_string_safe(self.start_y + self.game_height + self.screen_frame_offset - 1 + i, 
                                cabinet_front_right_x + i - 1, '\\')
-
-        # Top perspective line of the cabinet from top-right front to top-right depth
-        self.add_char_safe(self.start_y - self.screen_frame_offset, right_depth_x, '\\') # Top right corner of the cabinet
-
-        # Vertical right of the screen
-        for y in range(self.start_y - self.screen_frame_offset - 1, self.start_y + self.game_height + self.screen_frame_offset + 1):
-            self.add_char_safe(y, cabinet_front_right_x + 1, '*')
 
         # Control Panel Front Top Edge
         control_panel_top_y = self.start_y + self.game_height + self.screen_frame_offset + 1
@@ -404,7 +398,7 @@ def main():
         game = SpaceInvaders(stdscr, debug=False)
         
         required_width = 32
-        required_height = 43
+        required_height = 44
 
         if game.width < required_width or game.height < required_height:
             print(f"👾 Make terminal window bigger. Minimum size: {required_height}x{required_width}. Your window is {game.height}x{game.width}.")
