@@ -16,7 +16,8 @@ class SpaceInvaders:
 
         # upper left corner origin
         self.start_x = (self.width - self.game_width) // 2
-        self.start_y = (self.height - self.game_height) // 2
+        # self.start_y = (self.height - self.game_height) // 2
+        self.start_y = 3
         
         # Game states
         self.running = True
@@ -82,10 +83,12 @@ class SpaceInvaders:
             self.stdscr.addstr(line, 0, str(message)[:self.width])
         
     def add_char_safe(self, y, x, char):
+        """Helper to safely add a character, checking bounds"""
         if 0 <= y < self.height and 0 <= x < self.width:
             self.stdscr.addch(y, x, char)
 
     def add_string_safe(self, y, x, text):
+        """Helper to safely add a string, checking bounds"""
         if 0 <= y < self.height and 0 <= x < self.width:
             if x + len(text) > self.width:
                 text = text[:self.width - x]
@@ -118,7 +121,7 @@ class SpaceInvaders:
             self.add_char_safe(y, cabinet_front_left_x - 1, '*')
         
         # Right "depth" line of the cabinet (continuous vertical line)
-        cabinet_total_height = (self.start_y - self.screen_frame_offset) + (self.game_height + 1) + (self.screen_frame_offset + 1) + 4 + 8 + 1 # Calculate total height based on elements
+        cabinet_total_height = 42
         for y in range(self.start_y - self.screen_frame_offset + 1, cabinet_total_height - 1): # Start 1 char down to allow for top slant
              self.add_char_safe(y, right_depth_x, '|') 
 
@@ -165,7 +168,7 @@ class SpaceInvaders:
 
         # Cabinet Body - Main front section
         body_top_y = control_panel_bottom_y + 1
-        body_height = 8 # Height of the main body section
+        body_height = 16 # Height of the main body section
 
         for y in range(body_height):
             self.add_char_safe(body_top_y + y, cabinet_front_left_x, '|') # Left edge of front body
@@ -183,8 +186,8 @@ class SpaceInvaders:
         self.add_char_safe(base_y, cabinet_front_right_x + 1, '/')
 
         # coin slots
-        self.add_string_safe(control_panel_bottom_y + 3, self.start_x + self.game_width // 2 - 2, '|$|')
-        self.add_string_safe(control_panel_bottom_y + 3, self.start_x + self.game_width // 2 + 2, '|$|')
+        self.add_string_safe(control_panel_bottom_y + 4, self.start_x + self.game_width // 2 - 2, '|$|')
+        self.add_string_safe(control_panel_bottom_y + 4, self.start_x + self.game_width // 2 + 2, '|$|')
 
     def draw_player(self):
         if not self.game_over:
@@ -195,6 +198,7 @@ class SpaceInvaders:
         alive_enemies = len([enemy for enemy in self.enemies if enemy['alive']])
         destroyed_enemies = total_enemies - alive_enemies
         
+        # Display level and score
         self.add_string_safe(self.start_y + 1, self.start_x + 2, f"L{self.current_level}: {destroyed_enemies}/{total_enemies}")
 
     def draw_enemies(self):
@@ -242,7 +246,7 @@ class SpaceInvaders:
         self.bullets = []
             
     def draw_game_over_screen(self):
-        """draw game over or victory screen with reset option"""
+        """Draw game over or victory screen with reset option"""
         mid_screen_y = self.start_y + self.game_height // 2
         mid_screen_x = self.start_x + self.game_width // 2
         
@@ -303,7 +307,7 @@ class SpaceInvaders:
             self.running = False
         elif self.game_over or self.game_won:
             # Handle game over/won state input
-            if key == ord('r'):
+            if key == ord('r') or key == ord('R'):
                 self.current_level = 1  # Reset to level 1
                 self.reset_game()
         else:
@@ -347,7 +351,7 @@ class SpaceInvaders:
 
             self.debug_message(f"{self.bullets=}", line=8)
 
-            # can we speed this nested for loop up if we sort x and y positions?
+            # can we speed this nested for loop up if we use f"{x}_{y}" as a key and have a dictionary of bullets (or enemies)?
             for enemy in self.enemies:
                 for i, bullet in enumerate(self.bullets):
                     if enemy['alive'] and bullet["x"] == enemy['x'] and bullet["y"] == enemy['y']:
@@ -399,9 +403,8 @@ def main():
         stdscr = curses.initscr()
         game = SpaceInvaders(stdscr, debug=False)
         
-        # Calculate required dimensions
-        required_width = game.start_x + game.game_width + game.screen_frame_offset + game.cabinet_depth + 10
-        required_height = game.start_y + game.game_height + game.screen_frame_offset + 10
+        required_width = 32
+        required_height = 43
 
         if game.width < required_width or game.height < required_height:
             print(f"👾 Make terminal window bigger. Minimum size: {required_height}x{required_width}. Your window is {game.height}x{game.width}.")
